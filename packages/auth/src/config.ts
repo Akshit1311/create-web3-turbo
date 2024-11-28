@@ -1,76 +1,37 @@
-import type {
-  DefaultSession,
-  NextAuthConfig,
-  Session as NextAuthSession,
-} from "next-auth";
-import { skipCSRFCheck } from "@auth/core";
-import { DrizzleAdapter } from "@auth/drizzle-adapter";
-import Discord from "next-auth/providers/discord";
-
-import { db } from "@acme/db/client";
-import { Account, Session, User } from "@acme/db/schema";
+import type { DefaultSession, NextAuthConfig } from "next-auth";
 
 import { env } from "../env";
+import WalletProvider from "./providers/WalletProvider";
 
 declare module "next-auth" {
   interface Session {
     user: {
       id: string;
+      walletAddress: string;
     } & DefaultSession["user"];
   }
 }
 
-const adapter = DrizzleAdapter(db, {
-  usersTable: User,
-  accountsTable: Account,
-  sessionsTable: Session,
-});
-
-export const isSecureContext = env.NODE_ENV !== "development";
-
 export const authConfig = {
-  adapter,
-  // In development, we need to skip checks to allow Expo to work
-  ...(!isSecureContext
-    ? {
-        skipCSRFCheck: skipCSRFCheck,
-        trustHost: true,
-      }
-    : {}),
   secret: env.AUTH_SECRET,
-  providers: [Discord],
+  providers: [WalletProvider],
+  session: {
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
   callbacks: {
-    session: (opts) => {
-      if (!("user" in opts))
-        throw new Error("unreachable with session strategy");
-
-      return {
-        ...opts.session,
-        user: {
-          ...opts.session.user,
-          id: opts.user.id,
-        },
-      };
+    jwt({ token, user }) {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      if (user) {
+        // User is available during sign-in
+        token.user = user;
+      }
+      return token;
+    },
+    session({ session, token }) {
+      // @ts-expect-error NextAuth is a bitch
+      session.user = token.user;
+      return session;
     },
   },
 } satisfies NextAuthConfig;
-
-export const validateToken = async (
-  token: string,
-): Promise<NextAuthSession | null> => {
-  const sessionToken = token.slice("Bearer ".length);
-  const session = await adapter.getSessionAndUser?.(sessionToken);
-  return session
-    ? {
-        user: {
-          ...session.user,
-        },
-        expires: session.session.expires.toISOString(),
-      }
-    : null;
-};
-
-export const invalidateSessionToken = async (token: string) => {
-  const sessionToken = token.slice("Bearer ".length);
-  await adapter.deleteSession?.(sessionToken);
-};

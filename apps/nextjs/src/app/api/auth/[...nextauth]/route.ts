@@ -1,7 +1,8 @@
+import type { NextRequest } from "next/server";
 import { cookies } from "next/headers";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
-import { handlers, isSecureContext } from "@acme/auth";
+import { handlers } from "@acme/auth";
 
 export const runtime = "edge";
 
@@ -16,27 +17,17 @@ const AUTH_COOKIE_PATTERN = /authjs\.session-token=([^;]+)/;
  * @param req The request to modify
  * @returns The modified request.
  */
-function rewriteRequestUrlInDevelopment(req: NextRequest) {
-  if (isSecureContext) return req;
 
-  const host = req.headers.get("host");
-  const newURL = new URL(req.url);
-  newURL.host = host ?? req.nextUrl.host;
-  return new NextRequest(newURL, req);
-}
-
-export const POST = async (_req: NextRequest) => {
+export const POST = async (req: NextRequest) => {
   // First step must be to correct the request URL.
-  const req = rewriteRequestUrlInDevelopment(_req);
   return handlers.POST(req);
 };
 
 export const GET = async (
-  _req: NextRequest,
+  req: NextRequest,
   props: { params: { nextauth: string[] } },
 ) => {
   // First step must be to correct the request URL.
-  const req = rewriteRequestUrlInDevelopment(_req);
 
   const nextauthAction = props.params.nextauth[0];
   const isExpoSignIn = req.nextUrl.searchParams.get("expo-redirect");

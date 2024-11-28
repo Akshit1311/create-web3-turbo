@@ -11,7 +11,7 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 
 import type { Session } from "@acme/auth";
-import { auth, validateToken } from "@acme/auth";
+import { auth } from "@acme/auth";
 import { db } from "@acme/db/client";
 
 /**
@@ -21,8 +21,7 @@ import { db } from "@acme/db/client";
  */
 const isomorphicGetSession = async (headers: Headers) => {
   const authToken = headers.get("Authorization") ?? null;
-  if (authToken) return validateToken(authToken);
-  return auth();
+  if (authToken) return auth();
 };
 
 /**
